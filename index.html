@@ -1,0 +1,754 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="상식부터 테트리스까지 열 종목 전부 억까인 심야 퀴즈쇼 게임">
+<title>억까 퀴즈쇼</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=IBM+Plex+Sans+KR:wght@400;600;700&family=Nanum+Pen+Script&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: 심야 퀴즈쇼 무대. 남색 스튜디오에 스포트라이트가 돌고, 전구 테두리 퀴즈 보드 하나가 무대 중앙. 위에는 LED 점수판. 의도적인 단일 테마. */
+:root{
+  color-scheme: dark;
+  --night:#07111f; --night-2:#0e2140; --rim:#16294a;
+  --board:#fbfaf5; --ink:#0b1626; --muted:#66748a;
+  --gold:#ffc63d; --gold-deep:#d99a12; --coral:#ff4b5c; --mint:#16c47f; --sky:#4cc9ff;
+  --display:'Bagel Fat One','Black Han Sans','IBM Plex Sans KR',system-ui,sans-serif;
+  --body:'IBM Plex Sans KR',system-ui,-apple-system,'Malgun Gothic',sans-serif;
+  --hand:'Nanum Pen Script','IBM Plex Sans KR',cursive;
+  --mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+  --pop:cubic-bezier(.2,1.5,.35,1);
+}
+html,body{height:100%}
+body{
+  margin:0; background:var(--night); color:#fff; font-family:var(--body); font-size:16px; line-height:1.55;
+  background-image:
+    radial-gradient(ellipse 80% 45% at 50% 108%, rgba(255,198,61,.22), transparent 70%),
+    radial-gradient(ellipse 70% 60% at 50% -10%, var(--night-2), transparent 75%);
+  overflow-x:hidden;
+}
+/* 스포트라이트 */
+.beams{position:fixed; inset:0; pointer-events:none; z-index:0; overflow:hidden}
+.beams i{position:absolute; top:-30%; width:60vmax; height:140vmax; transform-origin:50% 0;
+  background:linear-gradient(180deg, rgba(255,236,180,.16), rgba(255,236,180,0) 70%);
+  clip-path:polygon(46% 0, 54% 0, 100% 100%, 0 100%); filter:blur(6px)}
+.beams i:nth-child(1){left:-18vmax; animation:sweepL 9s ease-in-out infinite alternate}
+.beams i:nth-child(2){right:-18vmax; animation:sweepR 11s ease-in-out infinite alternate}
+.beams i:nth-child(3){left:calc(50% - 30vmax); opacity:.5; background:linear-gradient(180deg, rgba(76,201,255,.14), transparent 65%); animation:sweepC 13s ease-in-out infinite alternate}
+@keyframes sweepL{from{transform:rotate(-28deg)}to{transform:rotate(4deg)}}
+@keyframes sweepR{from{transform:rotate(26deg)}to{transform:rotate(-6deg)}}
+@keyframes sweepC{from{transform:rotate(-10deg)}to{transform:rotate(10deg)}}
+
+.app{
+  position:relative; z-index:1; min-height:100%; box-sizing:border-box; max-width:700px; margin:0 auto;
+  display:flex; flex-direction:column; gap:16px;
+  padding-block:18px 44px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* 점수판 */
+.hud{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap}
+.brand{font-family:var(--display); font-size:24px; line-height:1; letter-spacing:-.01em; display:flex; align-items:center; gap:8px}
+.brand b{font-weight:400; color:var(--gold); text-shadow:0 0 18px rgba(255,198,61,.55)}
+.brand .on-air{font-family:var(--mono); font-size:10px; font-weight:600; letter-spacing:.14em; color:#fff; background:var(--coral); border-radius:4px; padding:3px 6px; animation:onair 1.6s steps(1) infinite}
+@keyframes onair{50%{opacity:.35}}
+.meta{display:flex; gap:8px; align-items:stretch; flex-wrap:wrap}
+.led{display:flex; flex-direction:column; justify-content:center; gap:1px; min-width:64px; padding:5px 12px 6px; border-radius:10px; background:#050b15; border:1px solid #1f3459; box-shadow:inset 0 0 0 1px rgba(255,255,255,.03), inset 0 -10px 18px rgba(0,0,0,.4)}
+.led small{font-family:var(--mono); font-size:9.5px; letter-spacing:.16em; color:#7f93b5; line-height:1.2}
+.led span{font-family:var(--display); font-size:20px; line-height:1.1; color:var(--gold); text-shadow:0 0 12px rgba(255,198,61,.45); font-variant-numeric:tabular-nums}
+.led.red span{color:var(--coral); text-shadow:0 0 12px rgba(255,75,92,.5)}
+.led.cat span{font-family:var(--body); font-weight:700; font-size:15px; color:#fff; text-shadow:none; line-height:1.5}
+.bump{animation:bump .5s var(--pop)}
+@keyframes bump{30%{transform:scale(1.5) rotate(-6deg)}}
+.mute{font:inherit; font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.08em; color:#cfe0ff; background:#050b15; border:1px solid #1f3459; border-radius:10px; padding:0 12px; min-height:44px; cursor:pointer; transition:transform .15s, border-color .15s}
+.mute:hover{transform:translateY(-2px); border-color:var(--gold)}
+.mute:active{transform:translateY(1px)}
+.mute[aria-pressed="true"]{color:#7f93b5}
+
+/* 진행 LED */
+.track{display:grid; grid-template-columns:repeat(10,1fr); gap:6px}
+.track i{height:8px; border-radius:99px; background:#13233f; box-shadow:inset 0 1px 2px rgba(0,0,0,.5); transition:background .3s, box-shadow .3s}
+.track i.on{background:var(--gold); box-shadow:0 0 10px rgba(255,198,61,.6)}
+.track i.cur{background:var(--coral); box-shadow:0 0 12px rgba(255,75,92,.7); animation:onair 1s steps(1) infinite}
+
+/* 전구 테두리 보드 */
+.marquee{position:relative; padding:14px; border-radius:32px; background:linear-gradient(180deg,#1b3157,#0f1f3a); box-shadow:0 30px 80px -30px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.08)}
+.marquee::before,.marquee::after{content:""; position:absolute; inset:3px; border-radius:29px; padding:8px; pointer-events:none;
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0)}
+.marquee::before{background:radial-gradient(circle, #fff6d6 0 2px, var(--gold) 2.6px 3.4px, transparent 4px) 0 0/20px 20px; filter:drop-shadow(0 0 4px rgba(255,198,61,.9)); animation:chase 1.2s linear infinite}
+.marquee::after{background:radial-gradient(circle, rgba(255,198,61,.28) 0 3px, transparent 3.6px) 10px 10px/20px 20px}
+@keyframes chase{to{background-position:20px 0}}
+.marquee.alarm::before{background:radial-gradient(circle, #fff 0 2px, var(--coral) 2.6px 3.4px, transparent 4px) 0 0/20px 20px; filter:drop-shadow(0 0 5px rgba(255,75,92,1)); animation:chase .3s linear infinite}
+.marquee.win::before{animation-duration:.4s}
+
+.card{
+  position:relative; background:var(--board); color:var(--ink); border-radius:20px; padding:28px 24px 26px;
+  display:flex; flex-direction:column; gap:18px; min-height:460px; box-sizing:border-box; overflow:hidden;
+  box-shadow:inset 0 -6px 0 rgba(11,22,38,.06);
+}
+.card::before{content:""; position:absolute; inset:0; pointer-events:none; background:repeating-linear-gradient(0deg, rgba(11,22,38,.025) 0 2px, transparent 2px 4px)}
+.card.enter{animation:boardIn .5s var(--pop)}
+.card.shake{animation:shake .45s}
+.card.crash{background:#0b3aa8; color:#fff}
+@keyframes boardIn{from{transform:translateY(16px) scale(.97); opacity:.2}}
+@keyframes shake{15%{transform:translateX(-14px) rotate(-1.2deg)}35%{transform:translateX(12px) rotate(1deg)}55%{transform:translateX(-8px)}75%{transform:translateX(5px)}}
+.body{position:relative; display:flex; flex-direction:column; gap:18px; min-width:0}
+
+.qnum{margin:0; display:flex; align-items:center; gap:10px; font-family:var(--mono); font-size:12px; font-weight:600; letter-spacing:.14em; color:var(--muted)}
+.qnum b{font-family:var(--display); font-weight:400; font-size:15px; letter-spacing:0; color:var(--ink); background:var(--gold); border-radius:8px; padding:3px 9px 2px}
+.q{font-family:var(--display); font-weight:400; font-size:clamp(27px,6.6vw,40px); line-height:1.22; letter-spacing:-.01em; margin:0; text-wrap:balance; word-break:keep-all}
+.q .w{display:inline-block; animation:rise .5s var(--pop) both; animation-delay:var(--d)}
+@keyframes rise{from{transform:translateY(.55em) rotate(4deg); opacity:0}}
+.host{margin:0; font-family:var(--hand); font-size:24px; line-height:1.15; color:#d1324a; transform:rotate(-2deg); transform-origin:left; animation:scribble .6s .35s both var(--pop)}
+@keyframes scribble{from{clip-path:inset(0 100% 0 0); transform:rotate(-2deg) translateX(-6px)}to{clip-path:inset(0 0 0 0)}}
+
+/* 버튼: 키캡 */
+.opts{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+.opts.row4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.key{
+  position:relative; font:inherit; font-weight:700; font-size:18px; color:var(--ink); background:#fff;
+  border:2.5px solid var(--ink); border-radius:16px; box-shadow:0 5px 0 var(--ink);
+  padding:14px 16px; min-height:60px; cursor:pointer; touch-action:manipulation; overflow:hidden;
+  display:flex; align-items:center; gap:12px; text-align:left;
+  transition:transform .14s var(--pop), box-shadow .14s, background-color .15s;
+}
+.key::after{content:""; position:absolute; inset:0; background:linear-gradient(105deg, transparent 35%, rgba(255,255,255,.75) 50%, transparent 65%); transform:translateX(-120%); transition:transform .5s ease}
+.key:hover{transform:translateY(-3px); box-shadow:0 8px 0 var(--ink); background-color:#fff7dc}
+.key:hover::after{transform:translateX(120%)}
+.key:active{transform:translateY(4px); box-shadow:0 1px 0 var(--ink); transition-duration:.05s}
+.key:focus-visible,.tw:focus-visible,.pad:focus-visible,input:focus-visible,.mute:focus-visible{outline:3px solid var(--sky); outline-offset:3px}
+.opts .key{animation:popIn .45s var(--pop) backwards}
+.opts .key:nth-child(1){animation-delay:.18s}.opts .key:nth-child(2){animation-delay:.24s}.opts .key:nth-child(3){animation-delay:.3s}.opts .key:nth-child(4){animation-delay:.36s}
+@keyframes popIn{from{transform:scale(.6) translateY(10px); opacity:0}}
+.key .bd{flex:none; display:grid; place-items:center; width:30px; height:30px; border-radius:50%; background:var(--ink); color:var(--gold); font-family:var(--display); font-size:14px; line-height:1}
+.key.num{justify-content:center; font-family:var(--display); font-weight:400; font-size:36px; line-height:1; padding:10px 0}
+.key.gold{background:var(--gold); justify-content:center; text-align:center}
+.key.gold:hover{background-color:#ffd468}
+.key.coral{background:var(--coral); color:#fff; justify-content:center}
+.key.coral:hover{background-color:#ff6573}
+.key.flash-ok{background:var(--mint)!important; color:#fff}
+.key.flash-bad{background:var(--coral)!important; color:#fff}
+
+/* 대기실 */
+.title{font-family:var(--display); font-weight:400; font-size:clamp(58px,15vw,104px); line-height:.95; letter-spacing:-.02em; margin:0}
+.title .ch{display:inline-block; animation:drop .7s var(--pop) both; animation-delay:var(--d)}
+@keyframes drop{from{transform:translateY(-120%) rotate(-12deg); opacity:0}}
+.tw{display:inline-block; cursor:pointer; border-radius:12px; color:var(--coral); transition:transform .2s var(--pop)}
+.tw .ch{text-shadow:0 5px 0 var(--ink)}
+.tw:hover{transform:rotate(-6deg) scale(1.06)}
+.lead{margin:0; font-size:17px; line-height:1.6; max-width:34em; color:#2a3850}
+.chips{display:flex; flex-wrap:wrap; gap:6px; margin:0; padding:0; list-style:none}
+.chips li{font-size:13px; font-weight:700; border:2px solid var(--ink); border-radius:999px; padding:2px 11px; background:#fff; animation:popIn .4s var(--pop) both; animation-delay:calc(.5s + var(--i) * 45ms)}
+.chips li:nth-child(5){background:var(--gold)}
+.arena{position:relative; height:180px; border-radius:18px; background:repeating-linear-gradient(-45deg, #f1efe6 0 12px, #f7f5ee 12px 24px); border:2px dashed #c9c5b6; overflow:hidden}
+.arena .run{position:absolute; transition:left .18s cubic-bezier(.3,1.6,.5,1), top .18s cubic-bezier(.3,1.6,.5,1), transform .14s, box-shadow .14s}
+.arena-note{position:absolute; right:14px; bottom:8px; font-family:var(--hand); font-size:22px; color:#9a957f; pointer-events:none}
+.hint{margin:0; min-height:1.4em; font-family:var(--hand); font-size:26px; line-height:1.1; color:#d1324a}
+.best{margin:0; font-family:var(--mono); font-size:12px; letter-spacing:.06em; color:var(--muted)}
+
+/* 반응속도 */
+.pad{width:100%; height:250px; border:2.5px solid var(--ink); border-radius:24px; box-shadow:0 8px 0 var(--ink); font-family:var(--display); font-size:52px; cursor:pointer; touch-action:manipulation; user-select:none; -webkit-user-select:none; transition:background-color .08s, transform .1s}
+.pad:active{transform:translateY(6px); box-shadow:0 2px 0 var(--ink)}
+.pad.waiting{animation:breathe 1.4s ease-in-out infinite}
+@keyframes breathe{50%{filter:brightness(.93)}}
+
+/* 테트리스 */
+.tinfo{display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-weight:700; font-size:14px}
+.tinfo canvas{border-radius:6px; background:#0b1730; border:2px solid var(--ink)}
+.tag{background:var(--gold); border-radius:6px; padding:1px 7px; font-size:12px; font-weight:700}
+.tinfo .sp{margin-left:auto; font-family:var(--mono); font-size:12px; letter-spacing:.08em}
+.tinfo .sp b{font-family:var(--display); font-weight:400; font-size:18px; color:var(--coral)}
+.board-wrap{display:flex; justify-content:center}
+#tb{display:block; max-width:100%; border-radius:12px; border:3px solid var(--ink); box-shadow:0 6px 0 var(--ink), 0 0 0 6px #e9e5d6}
+.pad5{display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px}
+.pad5 .key{justify-content:center; padding:8px 0; font-size:16px; min-height:54px}
+
+/* 국어 */
+.field{display:flex; gap:10px; flex-wrap:wrap; align-items:stretch}
+.field label{flex-basis:100%; font-size:13px; font-weight:700; color:var(--muted)}
+.field input{flex:1 1 200px; min-width:0; font:inherit; font-size:20px; font-weight:600; padding:12px 16px; border:2.5px solid var(--ink); border-radius:16px; background:#fff; color:var(--ink); box-shadow:inset 0 3px 0 rgba(11,22,38,.08)}
+.field .key{flex:0 0 auto; justify-content:center}
+.fine{margin:0; font-size:10px; color:#aab0bd; line-height:1.45}
+
+/* 볼륨 */
+.vol{display:flex; align-items:flex-end; justify-content:space-between; gap:12px; padding:14px 18px; border-radius:18px; background:#0b1730; color:#fff}
+.vl{font-family:var(--mono); font-size:12px; letter-spacing:.14em; color:#7f93b5}
+.vnum{font-family:var(--display); font-size:84px; line-height:.9; color:var(--gold); text-shadow:0 0 22px rgba(255,198,61,.5); font-variant-numeric:tabular-nums}
+.vnum.tick{animation:tick .18s ease-out}
+@keyframes tick{from{transform:translateY(-6px) scale(1.06)}}
+input[type=range]{width:100%; height:36px; accent-color:var(--coral); margin:0}
+
+/* 기억력 */
+.mem{display:flex; justify-content:center; gap:12px; margin:6px 0}
+.mem span{display:grid; place-items:center; width:clamp(58px,17vw,96px); aspect-ratio:3/4; border-radius:16px; background:var(--ink); color:var(--gold); font-family:var(--display); font-size:clamp(40px,11vw,64px); box-shadow:0 6px 0 #000; animation:flip .55s var(--pop) both; animation-delay:var(--d)}
+@keyframes flip{from{transform:rotateX(90deg); opacity:0}}
+.memt{height:10px; border-radius:99px; overflow:hidden; background:#e7e4d8}
+.memt i{display:block; height:100%; width:100%; background:linear-gradient(90deg,var(--coral),var(--gold)); animation:drain 2.4s linear forwards}
+@keyframes drain{to{width:0}}
+
+/* 끈기 */
+.counter{display:flex; align-items:baseline; justify-content:center; gap:8px; font-variant-numeric:tabular-nums}
+.counter b{font-family:var(--display); font-weight:400; font-size:112px; line-height:1}
+.counter b.tick{animation:tick .15s ease-out}
+.counter span{font-family:var(--mono); font-weight:600; color:var(--muted); font-size:20px}
+.meter{height:14px; border-radius:99px; background:#e7e4d8; overflow:hidden}
+.meter i{display:block; height:100%; width:0; background:linear-gradient(90deg,var(--gold),var(--coral)); transition:width .15s}
+.clickrow{display:flex; justify-content:flex-start; transition:none}
+.clickrow.flip{justify-content:flex-end}
+.key.big{font-size:22px; padding:20px 36px}
+
+/* 양심 */
+.yn{display:flex; flex-direction:column; gap:16px; align-items:flex-start}
+.key.yes{width:100%; justify-content:center; font-family:var(--display); font-weight:400; font-size:28px; padding:26px; background:var(--coral); color:#fff; animation:wobble 2.2s ease-in-out infinite}
+@keyframes wobble{0%,100%{transform:rotate(0)}10%{transform:rotate(-1.5deg) scale(1.02)}20%{transform:rotate(1.5deg) scale(1.02)}30%{transform:rotate(0)}}
+.key.yes:hover{animation:none}
+.key.no{font-size:13px; padding:6px 14px; min-height:44px; border-width:2px; box-shadow:0 3px 0 var(--ink); transition:transform .25s var(--pop), box-shadow .14s}
+
+/* 엔딩 */
+.err h2{font-family:var(--display); font-weight:400; font-size:40px; line-height:1.1; margin:0}
+.err p{margin:0; color:#dbe5ff}
+.bar{height:16px; border:2px solid #fff; border-radius:99px; overflow:hidden}
+.bar i{display:block; height:100%; width:0; background:#fff}
+.mono{font-family:var(--mono); font-variant-numeric:tabular-nums}
+.glitch{animation:glitch .25s steps(2) infinite}
+@keyframes glitch{50%{transform:translate(2px,-1px); text-shadow:-2px 0 var(--coral), 2px 0 var(--sky)}}
+.stats{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:0}
+.stats div{border-radius:16px; padding:14px; background:var(--ink); color:#fff; animation:popIn .5s var(--pop) both}
+.stats div:nth-child(2){animation-delay:.1s}.stats div:nth-child(3){animation-delay:.2s}
+.stats dt{font-family:var(--mono); font-size:11px; letter-spacing:.12em; color:#7f93b5}
+.stats dd{margin:2px 0 0; font-family:var(--display); font-size:26px; line-height:1.15; color:var(--gold); font-variant-numeric:tabular-nums; word-break:keep-all}
+
+/* 오버레이 */
+.ov{position:fixed; inset:0; z-index:50; display:grid; place-items:center; padding:16px; background:radial-gradient(circle at 50% 45%, rgba(255,75,92,.35), rgba(7,17,31,.85) 65%); animation:fade .2s ease-out}
+@keyframes fade{from{opacity:0}}
+.ov-panel{position:relative; width:100%; max-width:420px; box-sizing:border-box; background:var(--board); color:var(--ink); border-radius:24px; padding:30px 22px 22px; text-align:center; display:flex; flex-direction:column; gap:10px; box-shadow:0 0 0 6px var(--coral), 0 30px 80px rgba(0,0,0,.6); animation:slam .45s var(--pop)}
+@keyframes slam{from{transform:scale(1.6) rotate(6deg); opacity:0}}
+.ov-stamp{align-self:center; font-family:var(--display); font-size:76px; line-height:1; color:#fff; background:var(--coral); border-radius:18px; padding:8px 26px 10px; transform:rotate(-7deg); box-shadow:0 6px 0 var(--ink); margin:-60px 0 4px; animation:stampIn .5s .1s var(--pop) both}
+@keyframes stampIn{from{transform:rotate(-30deg) scale(2.2); opacity:0}}
+.ov-insult{margin:0; font-family:var(--display); font-size:24px; line-height:1.25}
+.ov-msg{margin:0; color:#3a4860}
+.ov-hint{margin:0; font-family:var(--hand); font-size:22px; line-height:1.2; color:#d1324a; background:#fff4cf; border-radius:12px; padding:8px 12px}
+.ov-panel .key{justify-content:center; margin-top:6px}
+
+/* 이펙트 */
+#fx{position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:45}
+.flash{position:fixed; left:50%; top:44%; z-index:46; pointer-events:none; font-family:var(--display); font-size:clamp(56px,16vw,120px); white-space:nowrap; color:var(--mint); text-shadow:0 7px 0 var(--ink), 0 0 40px rgba(22,196,127,.6); transform:translate(-50%,-50%) rotate(-8deg); animation:stamp .45s var(--pop)}
+.flash.bad{color:var(--coral); text-shadow:0 7px 0 var(--ink), 0 0 40px rgba(255,75,92,.6)}
+@keyframes stamp{from{transform:translate(-50%,-50%) rotate(-20deg) scale(2.4); opacity:0}}
+.kk{position:fixed; z-index:47; pointer-events:none; font-family:var(--hand); font-weight:400; color:var(--gold); text-shadow:0 2px 0 var(--ink); animation:kk 1.5s ease-out forwards}
+@keyframes kk{from{transform:translate(0,0) rotate(0) scale(.6); opacity:0}15%{opacity:1}to{transform:translate(var(--dx), -46vh) rotate(var(--r)) scale(1.3); opacity:0}}
+.redflash{position:fixed; inset:0; z-index:44; pointer-events:none; background:var(--coral); animation:redflash .35s ease-out forwards}
+@keyframes redflash{from{opacity:.55}to{opacity:0}}
+.toast{position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom, 0px)); z-index:60; max-width:calc(100% - 32px); box-sizing:border-box; transform:translateX(-50%); background:var(--gold); color:var(--ink); border-radius:14px; box-shadow:0 5px 0 var(--ink), 0 20px 40px rgba(0,0,0,.4); padding:11px 18px; font-weight:700; text-align:center; animation:toastIn .45s var(--pop)}
+@keyframes toastIn{from{transform:translate(-50%, 140%) rotate(-4deg)}}
+
+@media (max-width:460px){
+  .card{padding:24px 16px 22px; min-height:440px}
+  .marquee{padding:11px; border-radius:28px}
+  .key.num{font-size:30px}
+  .stats{grid-template-columns:1fr}
+  .pad{height:220px}
+  .led{min-width:56px; padding:4px 10px}
+  .brand{font-size:21px}
+  .opts:not(.row4){grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important; transition:none!important}
+  .beams{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="beams" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="app">
+  <header class="hud">
+    <div class="brand"><b>억까</b> 퀴즈쇼 <span class="on-air">ON AIR</span></div>
+    <div class="meta">
+      <div class="led cat"><small>종목</small><span id="cat">대기실</span></div>
+      <div class="led"><small>문제</small><span id="prog">00/10</span></div>
+      <div class="led red"><small>사망</small><span id="deaths">0</span></div>
+      <button class="mute" id="mute" aria-pressed="false">소리 ON</button>
+    </div>
+  </header>
+  <div class="track" id="track" aria-hidden="true"></div>
+  <div class="marquee" id="mq"><main class="card" id="stage" aria-live="polite"></main></div>
+</div>
+
+<div class="ov" id="ov" hidden role="dialog" aria-modal="true" aria-labelledby="ovStamp">
+  <div class="ov-panel">
+    <div class="ov-stamp" id="ovStamp">땡!</div>
+    <p class="ov-insult" id="ovInsult"></p>
+    <p class="ov-msg" id="ovMsg"></p>
+    <p class="ov-hint" id="ovHint" hidden></p>
+    <button class="key gold" id="ovBtn">다시 도전</button>
+  </div>
+</div>
+<canvas id="fx" aria-hidden="true"></canvas>
+
+<script>
+(() => {
+const $ = (s, r = document) => r.querySelector(s);
+const pick = a => a[Math.random() * a.length | 0];
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+const state = { i: 0, deaths: 0, start: 0, muted: false, faked: false, fails: {}, retry: 0 };
+let cleanup = null, busy = false;
+const stageEl = $('#stage'), mq = $('#mq');
+const QN = 10;
+$('#track').innerHTML = '<i></i>'.repeat(QN);
+
+const INSULTS = ['ㅋㅋㅋㅋㅋㅋㅋ', '손가락 장식임?', '이걸 틀리네', '실력 이슈', '방금 그거 일부러 한 거지?', '노력은 가상함', '지능 로딩 중...', '다들 처음엔 그래. 아 너만 그런가', '엄마가 뒤에서 보고 계심', '아무도 안 봤어. 다 봄', '키보드 탓 금지', '억까 당하는 재능 있음', '방청객 웃음 참는 중'];
+
+/* ---------- 소리 ---------- */
+let ac;
+function tone(type, f1, f2, dur, vol = .07, at = 0) {
+  const o = ac.createOscillator(), g = ac.createGain(), n = ac.currentTime + at;
+  o.type = type; o.connect(g); g.connect(ac.destination);
+  o.frequency.setValueAtTime(f1, n); if (f2) o.frequency.exponentialRampToValueAtTime(f2, n + dur);
+  g.gain.setValueAtTime(vol, n); g.gain.exponentialRampToValueAtTime(.001, n + dur);
+  o.start(n); o.stop(n + dur + .02);
+}
+function sfx(t) {
+  if (state.muted) return;
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    if (t === 'ok') { tone('square', 660, 0, .1, .06); tone('square', 880, 0, .1, .06, .09); tone('square', 1320, 0, .18, .05, .18); }
+    else if (t === 'bad') { tone('sawtooth', 180, 120, .5, .08); tone('square', 92, 70, .5, .05); }
+    else if (t === 'tap') tone('triangle', 520 + Math.random() * 200, 0, .05, .04);
+    else if (t === 'whoosh') tone('sine', 900, 200, .15, .04);
+  } catch (e) {}
+}
+$('#mute').addEventListener('click', e => {
+  state.muted = !state.muted;
+  e.currentTarget.setAttribute('aria-pressed', String(state.muted));
+  e.currentTarget.textContent = state.muted ? '소리 OFF' : '소리 ON';
+});
+
+/* ---------- 이펙트 ---------- */
+const fx = $('#fx'), fctx = fx.getContext('2d');
+let parts = [], raf = 0;
+function sizeFx() { const d = Math.min(2, devicePixelRatio || 1); fx.width = innerWidth * d; fx.height = innerHeight * d; fctx.setTransform(d, 0, 0, d, 0, 0); }
+sizeFx(); addEventListener('resize', sizeFx);
+function confetti(n = 140, ox = innerWidth / 2, oy = innerHeight * .45) {
+  if (reduce) return;
+  const cols = ['#ffc63d', '#ff4b5c', '#16c47f', '#4cc9ff', '#ffffff'];
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, v = 4 + Math.random() * 9;
+    parts.push({ x: ox, y: oy, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 6, r: Math.random() * 6, vr: (Math.random() - .5) * .4, w: 6 + Math.random() * 6, h: 4 + Math.random() * 6, c: pick(cols), life: 0 });
+  }
+  if (!raf) raf = requestAnimationFrame(tickFx);
+}
+function tickFx() {
+  fctx.clearRect(0, 0, innerWidth, innerHeight);
+  parts = parts.filter(p => p.life < 140 && p.y < innerHeight + 40);
+  for (const p of parts) {
+    p.life++; p.vy += .32; p.vx *= .985; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+    fctx.save(); fctx.translate(p.x, p.y); fctx.rotate(p.r); fctx.globalAlpha = Math.max(0, 1 - p.life / 140);
+    fctx.fillStyle = p.c; fctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.abs(Math.cos(p.life * .15))); fctx.restore();
+  }
+  raf = parts.length ? requestAnimationFrame(tickFx) : 0;
+  if (!raf) fctx.clearRect(0, 0, innerWidth, innerHeight);
+}
+function laugh() {
+  if (reduce) return;
+  for (let i = 0; i < 16; i++) {
+    const s = document.createElement('span'); s.className = 'kk'; s.textContent = pick(['ㅋ', 'ㅋㅋ', 'ㅋㅋㅋ', 'ㅋㅋㅋㅋ']);
+    s.style.left = (5 + Math.random() * 85) + 'vw'; s.style.top = (70 + Math.random() * 25) + 'vh';
+    s.style.fontSize = (28 + Math.random() * 40) + 'px';
+    s.style.setProperty('--dx', ((Math.random() - .5) * 120) + 'px'); s.style.setProperty('--r', ((Math.random() - .5) * 50) + 'deg');
+    s.style.animationDelay = (Math.random() * .35) + 's';
+    document.body.appendChild(s); setTimeout(() => s.remove(), 2000);
+  }
+}
+function redFlash() { if (reduce) return; const r = document.createElement('div'); r.className = 'redflash'; document.body.appendChild(r); setTimeout(() => r.remove(), 400); }
+let toastT;
+function toast(msg) {
+  document.querySelectorAll('.toast').forEach(t => t.remove());
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; t.setAttribute('role', 'status');
+  document.body.appendChild(t); clearTimeout(toastT); toastT = setTimeout(() => t.remove(), 2300);
+}
+function flash(text, kind) { hideFlash(); const f = document.createElement('div'); f.className = 'flash' + (kind === 'bad' ? ' bad' : ''); f.textContent = text; f.id = 'flash'; document.body.appendChild(f); }
+function hideFlash() { const f = $('#flash'); if (f) f.remove(); }
+function shake() { stageEl.classList.remove('shake', 'enter'); void stageEl.offsetWidth; stageEl.classList.add('shake'); }
+function bump(el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
+function alarm(on) { mq.classList.toggle('alarm', on); }
+function win() { mq.classList.add('win'); setTimeout(() => mq.classList.remove('win'), 900); }
+
+/* ---------- 마크업 도우미 ---------- */
+const Q = t => `<h2 class="q">${t.split(' ').map((w, i) => `<span class="w" style="--d:${80 + i * 55}ms">${w}</span>`).join(' ')}</h2>`;
+const HOST = t => `<p class="host">${t}</p>`;
+const OPTS = (labels, { badges = true, cls = '' } = {}) =>
+  labels.map((l, i) => `<button class="key ${cls}" data-i="${i}">${badges ? `<span class="bd" aria-hidden="true">${'ABCD'[i]}</span>` : ''}<span class="lb">${l}</span></button>`).join('');
+function mark(btn, ok) { if (btn) btn.classList.add(ok ? 'flash-ok' : 'flash-bad'); }
+
+/* ---------- 진행 ---------- */
+const ov = $('#ov');
+function updateHud() {
+  const s = STAGES[state.i], done = Math.min(Math.max(state.i - 1, 0), QN);
+  $('#cat').textContent = s.cat;
+  $('#prog').textContent = `${String(Math.min(state.i, QN)).padStart(2, '0')}/${QN}`;
+  [...$('#track').children].forEach((t, k) => { t.className = k < done || s.end ? 'on' : (k === state.i - 1 && !s.intro ? 'cur' : ''); });
+  $('#deaths').textContent = state.deaths;
+}
+function go(i) {
+  if (cleanup) { cleanup(); cleanup = null; }
+  busy = false; hideFlash(); alarm(false);
+  state.i = i;
+  const s = STAGES[i];
+  updateHud();
+  stageEl.className = 'card'; void stageEl.offsetWidth; stageEl.classList.add('enter');
+  stageEl.innerHTML = (s.intro || s.end) ? '<div class="body"></div>' : `<p class="qnum"><b>Q${i}</b>${s.cat} · 문제 ${i} / ${QN}</p><div class="body"></div>`;
+  sfx('whoosh');
+  cleanup = s.run($('.body', stageEl)) || null;
+}
+function pass(note, btn) {
+  if (busy) return; busy = true;
+  if (cleanup) { cleanup(); cleanup = null; }
+  mark(btn, true); sfx('ok'); win();
+  if (note) toast(note);
+  const fake = !state.faked && state.i > 1 && Math.random() < .3;
+  if (fake) {
+    state.faked = true; alarm(true);
+    flash('시간 초과!', 'bad'); sfx('bad');
+    setTimeout(() => { alarm(false); flash('구라임 ㅋ 통과', 'ok'); confetti(); sfx('ok'); setTimeout(() => go(state.i + 1), 1100); }, 1300);
+  } else {
+    flash('정답!', 'ok'); confetti();
+    setTimeout(() => go(state.i + 1), 950);
+  }
+}
+function fail(msg, resetTo, btn) {
+  if (busy) return; busy = true;
+  if (cleanup) { cleanup(); cleanup = null; }
+  mark(btn, false);
+  state.deaths++; updateHud(); bump($('#deaths'));
+  sfx('bad'); shake(); redFlash(); laugh(); alarm(true);
+  const k = state.i; state.fails[k] = (state.fails[k] || 0) + 1;
+  $('#ovStamp').textContent = pick(['땡!', '땡!', '삐빅!', '탈락!']);
+  $('#ovInsult').textContent = pick(INSULTS);
+  $('#ovMsg').textContent = msg;
+  const hint = STAGES[k].hint, hEl = $('#ovHint');
+  if (hint && state.fails[k] >= 3) { hEl.textContent = '불쌍해서 주는 힌트: ' + hint; hEl.hidden = false; } else hEl.hidden = true;
+  state.retry = resetTo ?? k;
+  setTimeout(() => { ov.hidden = false; setTimeout(() => $('#ovBtn').focus(), 30); }, 380);
+}
+$('#ovBtn').addEventListener('click', () => { ov.hidden = true; go(state.retry); });
+
+/* ---------- 테트리스 ---------- */
+const SH = { I: [[1,1,1,1]], O: [[1,1],[1,1]], T: [[0,1,0],[1,1,1]], S: [[0,1,1],[1,1,0]], Z: [[1,1,0],[0,1,1]], L: [[0,0,1],[1,1,1]], J: [[1,0,0],[1,1,1]] };
+const COL = { I: '#4cc9ff', O: '#ffc63d', T: '#ff8a3d', S: '#16c47f', Z: '#ff4b5c', L: '#ffa62b', J: '#3d7bff' };
+const rot = m => m[0].map((_, i) => m.map(r => r[i]).reverse());
+function drawCell(c, x, y, s, col, a = 1) {
+  c.globalAlpha = a;
+  c.fillStyle = col; c.beginPath(); c.roundRect ? c.roundRect(x * s + 1, y * s + 1, s - 2, s - 2, Math.max(2, s / 6)) : c.rect(x * s + 1, y * s + 1, s - 2, s - 2); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(x * s + 3, y * s + 3, s - 6, Math.max(2, s / 7));
+  c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(x * s + 3, y * s + s - 3 - Math.max(2, s / 8), s - 6, Math.max(2, s / 8));
+  c.globalAlpha = 1;
+}
+
+/* ---------- 스테이지 ---------- */
+const STAGES = [
+{ cat: '대기실', intro: true, run(el) {
+  let best = null; try { best = localStorage.getItem('eokka-best'); } catch (e) {}
+  const ch = (s, d0) => [...s].map((c, i) => `<span class="ch" style="--d:${d0 + i * 70}ms">${c}</span>`).join('');
+  el.innerHTML = `
+    <p class="qnum"><b>시즌 1</b>오늘 밤 열 종목 생방송</p>
+    <h1 class="title"><span class="tw" id="tw" role="button" tabindex="0" aria-label="억까">${ch('억까', 0)}</span><br>${ch('퀴즈쇼', 160)}</h1>
+    <p class="lead">문제는 공정합니다. 진행자가 공정하지 않을 뿐. 상식부터 테트리스까지 열 종목을 버티면 칭호를 드립니다.</p>
+    <ul class="chips">${['상식', '수학', '넌센스', '반응속도', '테트리스', '국어', '감각', '기억력', '끈기', '양심'].map((c, i) => `<li style="--i:${i}">${c}</li>`).join('')}</ul>
+    <div class="arena" id="arena"><button class="key gold run" id="go">게임 시작</button><span class="arena-note" aria-hidden="true">잡아보시든가</span></div>
+    <p class="hint" id="hint"></p>
+    <p class="best">${best !== null ? `내 최고 기록 · 사망 ${esc(best)}회` : '아직 클리어 기록 없음'}</p>`;
+  const arena = $('#arena', el), btn = $('#go', el), hint = $('#hint', el);
+  let n = 0;
+  const place = rand => {
+    const aw = arena.clientWidth, ah = arena.clientHeight, bw = btn.offsetWidth, bh = btn.offsetHeight;
+    let x = (aw - bw) / 2, y = (ah - bh) / 2;
+    if (rand) {
+      const ox = parseFloat(btn.style.left) || x, oy = parseFloat(btn.style.top) || y;
+      for (let k = 0; k < 12; k++) { x = Math.random() * (aw - bw - 16) + 8; y = Math.random() * (ah - bh - 16) + 8; if (Math.hypot(x - ox, y - oy) > 100) break; }
+    }
+    btn.style.left = x + 'px'; btn.style.top = y + 'px';
+  };
+  requestAnimationFrame(() => place(false));
+  const flee = () => {
+    n++; place(true); sfx('tap');
+    if (n === 3) hint.textContent = '이 버튼은 절대 못 잡음. 근데 위에 뭔가 눌릴지도?';
+    if (n === 7) hint.textContent = '빨간 "억까" 글자 눌러 ㅋ';
+  };
+  btn.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') flee(); });
+  btn.addEventListener('pointerdown', e => { e.preventDefault(); flee(); });
+  btn.addEventListener('click', e => { if (e.detail === 0) { toast('키보드는 반칙인데 봐줌'); begin(); } });
+  const tw = $('#tw', el);
+  tw.addEventListener('click', begin);
+  tw.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); begin(); } });
+  const onR = () => place(false); addEventListener('resize', onR);
+  return () => removeEventListener('resize', onR);
+}},
+
+{ cat: '상식', hint: '보기가 0.7초마다 섞임. "서울" 뜨는 순간 눌러.', run(el) {
+  const L = ['서울', '부산', '세종', '대전'];
+  el.innerHTML = `${Q('대한민국의 수도는?')}<div class="opts">${OPTS(L)}</div>${HOST('몸풀기 문제임 ㅋ')}`;
+  const bs = [...el.querySelectorAll('.key')];
+  const deal = () => { const p = shuffle(L); bs.forEach((b, i) => { $('.lb', b).textContent = p[i]; }); };
+  deal();
+  const t = setInterval(deal, 700);
+  bs.forEach(b => b.addEventListener('click', () => {
+    const v = $('.lb', b).textContent;
+    if (v === '서울') pass('수도 맞추는 데 이렇게 힘들 줄은', b);
+    else if (v === '세종') fail('행정중심복합도시는 수도가 아님 ㅋ', null, b);
+    else fail(`${v}이(가) 수도면 서울 사람들 서운해함`, null, b);
+  }));
+  return () => clearInterval(t);
+}},
+
+{ cat: '수학', hint: '숫자 값 말고, 눈에 보이는 크기.', run(el) {
+  const items = shuffle([['9', 15], ['7', 24], ['5', 36], ['2', 96]]);
+  el.innerHTML = `${Q('가장 큰 숫자를 고르세요')}<div class="opts row4">${items.map(([v, s]) => `<button class="key num" data-v="${v}" style="font-size:${s}px;min-height:130px">${v}</button>`).join('')}</div>${HOST('초등학교 1학년 수준')}`;
+  el.querySelectorAll('.key').forEach(b => b.addEventListener('click', () => {
+    b.dataset.v === '2' ? pass('제일 크잖아. 눈으로 보면.', b) : fail(`${b.dataset.v}? 화면 봐. 제일 큰 건 2잖아.`, null, b);
+  }));
+}},
+
+{ cat: '넌센스', hint: '왼쪽에서 세 번째 버튼.', run(el) {
+  const labels = ['3', '1', '4', '2'];
+  el.innerHTML = `${Q('이 문제의 정답은 3번입니다')}<div class="opts row4">${OPTS(labels, { badges: false, cls: 'num' })}</div>${HOST('진짜임. 3번 누르면 됨')}`;
+  el.querySelectorAll('.key').forEach(b => b.addEventListener('click', () => {
+    const i = +b.dataset.i;
+    if (i === 2) pass('3번째 버튼이 3번이지 그럼', b);
+    else if (labels[i] === '3') fail('그건 1번 버튼에 3이라고 써놓은 거잖아', null, b);
+    else fail(`그건 ${i + 1}번이잖아. 3번이라니까?`, null, b);
+  }));
+}},
+
+{ cat: '반응속도', hint: '연두색, "지금!", 빨간 "초록" 글씨 전부 함정. 진짜는 글자 없는 진한 초록.', run(el) {
+  el.innerHTML = `${Q('초록색이 되면 누르세요')}<button class="pad waiting" id="pad">준비...</button>${HOST('1초 안에. 눈 깜빡이지 마')}`;
+  const pad = $('#pad', el);
+  let phase = 'wait', greenAt = 0;
+  const T = [];
+  const set = (p, bg, txt, fg = '#0b1626') => { phase = p; pad.style.background = bg; pad.style.color = fg; pad.textContent = txt; pad.classList.toggle('waiting', p === 'wait'); };
+  set('wait', '#dfe3ec', '기다려...');
+  const seq = [
+    [1300 + Math.random() * 1400, () => set('lime', '#b8e04a', '지금!')],
+    [900, () => set('red', '#ff4b5c', '초록', '#fff')],
+    [900, () => set('wait', '#dfe3ec', '기다려...')],
+    [800 + Math.random() * 1400, () => { set('green', '#0f7a43', '', '#fff'); greenAt = performance.now(); T.push(setTimeout(() => fail('1초 넘게 멍때림. 방금 그게 진짜 초록이었음'), 1000)); }]
+  ];
+  let acc = 0; seq.forEach(([d, f]) => { acc += d; T.push(setTimeout(f, acc)); });
+  const hit = () => {
+    const m = { wait: '아직 회색인데 왜 눌러 ㅋ', lime: '그건 연두색임. "지금!"이라고 써있으면 다 믿음?', red: '글자 말고 색을 보라고 색을' };
+    if (phase === 'green') pass(`${Math.round(performance.now() - greenAt)}ms. 반사신경은 인정`);
+    else fail(m[phase]);
+  };
+  pad.addEventListener('pointerdown', e => { e.preventDefault(); hit(); });
+  pad.addEventListener('click', e => { if (e.detail === 0) hit(); });
+  return () => T.forEach(clearTimeout);
+}},
+
+{ cat: '테트리스', hint: '좌우 반대. S·Z를 회전해서 세운 다음 빈 칸에 꽂으면 줄이 지워짐.', run(el) {
+  const W = 10, H = 16;
+  el.innerHTML = `${Q('한 줄만 지우면 통과')}
+    <div class="tinfo"><span>다음 블록</span><canvas id="nx" width="76" height="20"></canvas><span class="tag">진짜임</span><span class="sp">SPEED <b id="spd">1</b></span></div>
+    <div class="board-wrap"><canvas id="tb"></canvas></div>
+    <div class="pad5">
+      <button class="key" data-k="L" aria-label="왼쪽">←</button><button class="key" data-k="R" aria-label="오른쪽">→</button><button class="key" data-k="U">회전</button><button class="key" data-k="D" aria-label="한 칸 내리기">↓</button><button class="key" data-k="F">떨구기</button>
+    </div>
+    ${HOST('PC는 방향키, 스페이스로 떨구기')}`;
+  const cv = $('#tb', el), ctx = cv.getContext('2d');
+  const cs = Math.max(14, Math.min(24, Math.floor((el.clientWidth - 20) / W), Math.floor((innerHeight - 420) / H)));
+  const d = Math.min(2, devicePixelRatio || 1);
+  cv.width = W * cs * d; cv.height = H * cs * d; cv.style.width = W * cs + 'px'; cv.style.height = H * cs + 'px'; ctx.scale(d, d);
+  const gap = 6;
+  const grid = Array.from({ length: H }, (_, r) => r >= H - 4 ? Array.from({ length: W }, (_, c) => c === gap ? 0 : '#5b6b88') : Array(W).fill(0));
+  const order = ['S', 'Z', 'S', 'Z', 'I'];
+  let n = 0, warned = false, speed = 640, lvl = 1, cur = null, timer = null, done = false;
+  const nx = $('#nx', el).getContext('2d');
+  for (let i = 0; i < 4; i++) drawCell(nx, i, 0, 19, COL.I);
+
+  function hitTest(m, x, y) {
+    for (let r = 0; r < m.length; r++) for (let c = 0; c < m[r].length; c++) {
+      if (!m[r][c]) continue;
+      const X = x + c, Y = y + r;
+      if (X < 0 || X >= W || Y >= H) return true;
+      if (Y >= 0 && grid[Y][X]) return true;
+    }
+    return false;
+  }
+  function draw() {
+    ctx.fillStyle = '#0b1730'; ctx.fillRect(0, 0, W * cs, H * cs);
+    ctx.fillStyle = 'rgba(255,255,255,.04)';
+    for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) ctx.fillRect(x * cs + cs / 2 - 1, y * cs + cs / 2 - 1, 2, 2);
+    grid.forEach((row, r) => row.forEach((v, c) => { if (v) drawCell(ctx, c, r, cs, v); }));
+    if (cur) {
+      let gy = cur.y; while (!hitTest(cur.m, cur.x, gy + 1)) gy++;
+      cur.m.forEach((row, r) => row.forEach((v, c) => { if (v && gy + r >= 0) drawCell(ctx, cur.x + c, gy + r, cs, COL[cur.k], .18); }));
+      cur.m.forEach((row, r) => row.forEach((v, c) => { if (v && cur.y + r >= 0) drawCell(ctx, cur.x + c, cur.y + r, cs, COL[cur.k]); }));
+    }
+  }
+  function spawn() {
+    const k = n < order.length ? order[n] : 'IOTSZLJ'[Math.random() * 7 | 0]; n++;
+    const m = SH[k].map(r => r.slice());
+    cur = { k, m, x: Math.floor((W - m[0].length) / 2), y: 0 };
+    if (n === 2) toast('다음 블록 I라며? 그건 희망사항임');
+    if (hitTest(cur.m, cur.x, cur.y)) { done = true; fail('탑 쌓기 대회 아닌데?'); return false; }
+    return true;
+  }
+  function restart() { clearInterval(timer); timer = setInterval(step, speed); }
+  function stop() { clearInterval(timer); timer = null; }
+  function lock() {
+    cur.m.forEach((row, r) => row.forEach((v, c) => { if (v && cur.y + r >= 0) grid[cur.y + r][cur.x + c] = COL[cur.k]; }));
+    cur = null; sfx('tap');
+    let cleared = 0;
+    for (let r = H - 1; r >= 0; r--) if (grid[r].every(Boolean)) { grid.splice(r, 1); grid.unshift(Array(W).fill(0)); cleared++; r++; }
+    draw();
+    if (cleared) { done = true; stop(); pass('줄 지움. 테트리스 장인 인정'); return; }
+    speed = Math.max(150, speed - 75); lvl++; const sp = $('#spd', el); sp.textContent = lvl; bump(sp);
+    if (!spawn()) return;
+    restart(); draw();
+  }
+  function step() { if (done || !cur) return; if (!hitTest(cur.m, cur.x, cur.y + 1)) { cur.y++; draw(); } else lock(); }
+  function move(dx) {
+    if (!warned) { warned = true; toast('아 참고로 좌우 반대임 ㅋ'); }
+    dx = -dx;
+    if (!hitTest(cur.m, cur.x + dx, cur.y)) { cur.x += dx; draw(); }
+  }
+  function rotate() { const m = rot(cur.m); for (const k of [0, -1, 1, -2, 2]) if (!hitTest(m, cur.x + k, cur.y)) { cur.m = m; cur.x += k; draw(); return; } }
+  function drop() { while (!hitTest(cur.m, cur.x, cur.y + 1)) cur.y++; lock(); }
+  const act = { L: () => move(-1), R: () => move(1), U: rotate, D: step, F: drop };
+  const map = { ArrowLeft: 'L', ArrowRight: 'R', ArrowUp: 'U', ArrowDown: 'D', ' ': 'F', x: 'U', X: 'U' };
+  function key(e) { const k = map[e.key]; if (!k || busy || done || !cur) return; e.preventDefault(); act[k](); }
+  addEventListener('keydown', key);
+  el.querySelectorAll('.pad5 .key').forEach(b => b.addEventListener('click', () => { if (!busy && !done && cur) act[b.dataset.k](); }));
+  spawn(); draw(); restart();
+  return () => { done = true; stop(); removeEventListener('keydown', key); };
+}},
+
+{ cat: '국어', hint: '맨 밑에 작은 글씨 읽어봐.', run(el) {
+  el.innerHTML = `${Q("아래 칸에 '포기'라고 입력하면 다음 문제로 넘어갑니다")}
+    <form class="field" id="f" novalidate><label for="ans">답 입력</label><input id="ans" autocomplete="off" placeholder="여기에 입력"><button class="key gold" type="submit">제출</button></form>
+    ${HOST('이번 건 진짜 쉬움')}
+    <p class="fine">* 단, 진짜로 포기하는 사람은 Q1부터 다시 합니다. 포기 안 할 거면 '포기 안 함'이라고 쓰세요. 이 글씨 읽은 사람 상위 3%.</p>`;
+  const inp = $('#ans', el);
+  setTimeout(() => inp.focus({ preventScroll: true }), 400);
+  $('#f', el).addEventListener('submit', e => {
+    e.preventDefault();
+    const v = inp.value.replace(/\s/g, '');
+    if (!v) { toast('뭐라도 쓰고 눌러'); return; }
+    if (v.includes('포기') && /안|않/.test(v)) pass('오 약관 읽는 사람이네');
+    else if (v === '포기') fail('포기한 사람은 Q1부터~ 밑에 작은 글씨 안 읽었지?', 1);
+    else fail(`'${inp.value}'? '포기'라고 쓰라니까?`);
+  });
+}},
+
+{ cat: '감각', hint: '숫자가 슬라이더 위치랑 상관없이 튐. 실제 위치 36 근처.', run(el) {
+  el.innerHTML = `${Q('볼륨을 정확히 50으로 맞추세요')}
+    <div class="vol"><label for="vr" class="vl">VOLUME</label><output id="vo" class="vnum" for="vr">0</output></div>
+    <input type="range" id="vr" min="0" max="100" step="1" value="0">
+    <button class="key gold" id="vok">이 볼륨으로 확정</button>
+    ${HOST('미세 조정은 방향키로')}`;
+  const r = $('#vr', el), o = $('#vo', el);
+  const f = v => (v * 7) % 101;
+  const upd = () => { o.textContent = f(+r.value); o.classList.remove('tick'); void o.offsetWidth; o.classList.add('tick'); };
+  r.addEventListener('input', () => { upd(); sfx('tap'); }); o.textContent = 0;
+  $('#vok', el).addEventListener('click', e => {
+    const v = f(+r.value);
+    v === 50 ? pass('슬라이더 36이 50임. 국룰', e.currentTarget) : fail(`${v}이(가) 50으로 보여?`, null, e.currentTarget);
+  });
+}},
+
+{ cat: '기억력', hint: '숫자 보이는 동안 미리 더해둬.', run(el) {
+  const d = Array.from({ length: 4 }, () => 1 + (Math.random() * 9 | 0));
+  const sum = d.reduce((a, b) => a + b, 0);
+  el.innerHTML = `${Q('숫자 4개를 외우세요')}<div class="mem" aria-label="${d.join(' ')}">${d.map((v, i) => `<span style="--d:${200 + i * 110}ms">${v}</span>`).join('')}</div><div class="memt" aria-hidden="true"><i></i></div>${HOST('2.4초 보여줌')}`;
+  const t = setTimeout(() => {
+    const opts = shuffle([String(sum), String(sum - 1), String(sum + 2), d.join('')]);
+    el.innerHTML = `${Q('방금 숫자를 전부 더하면?')}<div class="opts">${OPTS(opts)}</div>${HOST('외우라고만 했지 더하지 말란 말은 안 함')}`;
+    el.querySelectorAll('.key').forEach(b => b.addEventListener('click', () => {
+      const v = $('.lb', b).textContent;
+      if (v === String(sum)) pass('암산까지 하네', b);
+      else if (v === d.join('')) fail('그건 외운 거고. 더하라고.', null, b);
+      else fail(`${d.join('+')}=${sum}. 외우는 것도 못 하네`, null, b);
+    }));
+  }, 2400);
+  return () => clearTimeout(t);
+}},
+
+{ cat: '끈기', hint: '99에서 딱 한 번 미끄러짐. 그 뒤엔 안 그럼.', run(el) {
+  el.innerHTML = `${Q('버튼을 100번 누르세요')}<div class="counter"><b id="cn">0</b><span>/ 100</span></div><div class="meter" aria-hidden="true"><i id="mt"></i></div><div class="clickrow" id="row"><button class="key gold big" id="cb">누르기</button></div>${HOST('손목 조심')}`;
+  let n = 0, slipped = false;
+  const cn = $('#cn', el), row = $('#row', el), mt = $('#mt', el);
+  $('#cb', el).addEventListener('click', () => {
+    n++; sfx('tap');
+    if (n === 99 && !slipped) { slipped = true; n = 61; toast('앗 손 미끄러짐 ㅋ 61부터'); sfx('bad'); shake(); laugh(); }
+    cn.textContent = n; cn.classList.remove('tick'); void cn.offsetWidth; cn.classList.add('tick');
+    mt.style.width = n + '%';
+    if (n % 15 === 0) row.classList.toggle('flip');
+    if (n >= 100) pass('끈기 하나는 국가대표');
+  });
+}},
+
+{ cat: '양심', hint: '작은 버튼이 진실. 두 번 도망가고 멈춤.', run(el) {
+  el.innerHTML = `${Q('마지막 문제. 이 게임 재밌었나요?')}<div class="yn"><button class="key yes" id="y">예! 너무 재밌어요</button><button class="key no" id="nn">아니오</button></div>${HOST('솔직하게. 진행자 안 삐짐')}`;
+  const nn = $('#nn', el);
+  let fl = 0;
+  const flee = () => { if (fl >= 2) return; fl++; sfx('tap'); nn.style.transform = `translate(${40 + Math.random() * 140}px, ${Math.random() * 30}px) rotate(${(Math.random() - .5) * 20}deg)`; };
+  nn.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') flee(); });
+  nn.addEventListener('pointerdown', e => { if (fl < 2) { e.preventDefault(); flee(); } });
+  $('#y', el).addEventListener('click', e => fail('거짓말 탐지기 삑. 이게 재밌을 리가 없음', null, e.currentTarget));
+  nn.addEventListener('click', () => pass('솔직해서 통과', nn));
+}},
+
+{ cat: '결과', end: true, run(el) {
+  stageEl.classList.add('crash'); alarm(true);
+  el.innerHTML = `<div class="err body"><h2 class="glitch">치명적 오류</h2><p>플레이어의 인내심이 감지되었습니다. 세이브 파일을 삭제하는 중...</p><div class="bar"><i id="eb"></i></div><p class="mono" id="ep">0%</p></div>`;
+  const eb = $('#eb', el), ep = $('#ep', el);
+  let p = 0;
+  const iv = setInterval(() => { p = Math.min(99, p + 3 + Math.random() * 9); eb.style.width = p + '%'; ep.textContent = Math.floor(p) + '%'; }, 120);
+  sfx('bad');
+  let cu = 0;
+  const t = setTimeout(() => {
+    clearInterval(iv); alarm(false);
+    stageEl.classList.remove('crash'); stageEl.classList.remove('enter'); void stageEl.offsetWidth; stageEl.classList.add('enter');
+    const sec = Math.round((Date.now() - state.start) / 1000);
+    const time = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+    const dn = state.deaths;
+    const title = dn <= 3 ? '억까 면역자' : dn <= 10 ? '평범한 피해자' : dn <= 25 ? '억까 전문 피해자' : '손가락 장식 보유자';
+    let best = null; try { best = localStorage.getItem('eokka-best'); if (best === null || dn < +best) localStorage.setItem('eokka-best', String(dn)); } catch (e) {}
+    const record = best === null || dn < +best;
+    const ch = (s, d0) => [...s].map((c, i) => `<span class="ch" style="--d:${d0 + i * 70}ms">${c}</span>`).join('');
+    el.innerHTML = `
+      <p class="qnum"><b>시즌 1</b>클리어</p>
+      <h1 class="title"><span class="tw">${ch('억까', 0)}</span><br>${ch('생존자', 160)}</h1>
+      <p class="lead">구라였음. 세이브 파일 멀쩡함. 열 종목을 다 버틴 건 인정.${record ? ' 최고 기록도 갱신.' : ''}</p>
+      <dl class="stats"><div><dt>사망</dt><dd id="sd">0회</dd></div><div><dt>걸린 시간</dt><dd>${time}</dd></div><div><dt>칭호</dt><dd>${title}</dd></div></dl>
+      <button class="key gold" id="again">다시 당하기</button>`;
+    sfx('ok'); win();
+    confetti(180, innerWidth * .25, innerHeight * .3); setTimeout(() => confetti(180, innerWidth * .75, innerHeight * .3), 300);
+    const sd = $('#sd', el); let c = 0;
+    cu = setInterval(() => { c++; if (c >= dn) { c = dn; clearInterval(cu); } sd.textContent = c + '회'; }, Math.max(20, 700 / Math.max(1, dn)));
+    if (dn === 0) sd.textContent = '0회';
+    $('#again', el).addEventListener('click', () => go(0));
+  }, 2600);
+  return () => { clearInterval(iv); clearInterval(cu); clearTimeout(t); stageEl.classList.remove('crash'); alarm(false); };
+}}
+];
+
+function begin() {
+  if (busy) return;
+  state.start = Date.now(); state.deaths = 0; state.faked = false; state.fails = {};
+  sfx('ok'); confetti(60);
+  go(1);
+}
+
+go(0);
+})();
+</script>
+</body>
+</html>
